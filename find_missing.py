@@ -16,7 +16,7 @@ parser = OptionParser()
 parser.add_option("-d", "--date", dest="date",
                   help="Only check those imports after the specified date (YYYYMMDD)")
 parser.add_option("-p", "--place", dest="place",
-                  help="Only check those imports that match the place name")
+                  help="Only check those imports that match the place name (regexp supproted)")
 parser.add_option("-u", "--uploader", dest="uploader",
                   help="Specify uploader whose imports are to be checked", default="linz_robA")
 parser.add_option("-j", "--josm",
@@ -37,8 +37,10 @@ api = overpy.Overpass()
 print("Searching for locations imported by '%s'" % options.uploader)
 if options.place != None:
    print("Filtering by place %s" % options.place)
+   place_regex=re.compile(options.place)
 if options.date != None:
    print("Filtering by date %s" % options.date)
+
 
 with open('file_list.csv', 'rb') as csvfile:
     csvreader = csv.DictReader(csvfile)
@@ -50,8 +52,7 @@ with open('file_list.csv', 'rb') as csvfile:
               date = row['date']
               place = row['place']
 
-              # TODO: Use regex for place comparison
-              if (options.place == None) or (place == options.place):
+              if (options.place == None) or (place_regex.match(place)):
                  if (options.date == None) or (date > options.date):
                     osc_file_name = "linz_places/" + place + ".osc"
                     
@@ -79,7 +80,7 @@ with open('file_list.csv', 'rb') as csvfile:
                                  #print (street.group(1))
                                  addr_streets.add(street.group(1))
                     
-                    print ("Place: %s,  Bound box: %f, %f, %f, %f, Imported %s" % (place, south, west, north, east, date))
+                    print ("Place: %s,  Bound box: %f, %f, %f, %f, Imported on %s" % (place, south, west, north, east, date))
                     
                     #-----------------------------------------------------------------------------
                     # Read highways within bounding box from OSM
