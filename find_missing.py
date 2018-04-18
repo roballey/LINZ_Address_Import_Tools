@@ -22,6 +22,9 @@ parser.add_option("-u", "--uploader", dest="uploader",
 parser.add_option("-j", "--josm",
                   action="store_true", dest="josm", default=False,
                   help="Use JOSM remote control interface to zoom to bounding box")
+parser.add_option("-v", "--verbose",
+                  action="store_true", dest="verbose", default=False,
+                  help="Produce verbose output")
 
 (options, args) = parser.parse_args()
 
@@ -64,7 +67,8 @@ with open('file_list.csv', 'rb') as csvfile:
                     addr_streets = set()
                     lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
                     addr_street = re.compile('"addr:street" v="(.*?)"')
-                    #print("Finding %s in zip file ..." % place)
+                    if options.verbose:
+                       print("Finding %s in zip file ..." % place)
                     with zipfile.ZipFile('linz_places.zip') as placesZip:
                       with placesZip.open(osc_file_name) as osc_file:
                         for line in osc_file:
@@ -105,22 +109,30 @@ with open('file_list.csv', 'rb') as csvfile:
                            (highway != "planned") and (highway != "track"):
                            name = way.tags.get("name", "n/a")
                            highway_streets.add(name)
-                           #print("Name: %s \tHighway: %s" % (name, highway))
+                           if options.verbose:
+                              print("Name: %s \tHighway: %s" % (name, highway))
                     
                     #-----------------------------------------------------------------------------
                     # Find streets from addresses that don't exist
                     #-----------------------------------------------------------------------------
                     missing = 0
+                    objects = ''
                     for street in addr_streets:
                        if street not in highway_streets:
                           print("Street: %s DOES NOT EXIST AS A HIGHWAY" % street)
+                          if options.josm:
+                            # Get addr:street nodes for missing street and use the first to build the JOSM objects list
+                            result = api.query("""
+                               node(%f,%f,%f,%f) ["addr:street"="%s"];
+                               out meta;
+                               """ % (south, west, north, east,street))
+                            objects = objects + 'n' + str(result.nodes[0].id) + ','
                           missing=1
                           
                     print
 
                     if ((missing == 1) and (options.josm)):
                        print("Starting JOSM...")
-                       # TODO: Change this to determine the OSM ID of the add:street's that are missing a highway and use load_object on
-                       # the id's instead of load_and_zoom over the whole bounding box
-                       requests.get("http://127.0.0.1:8111/load_and_zoom?left=%f&right=%f&top=%f&bottom=%f" % (west, east, north, south))
+                       print("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
+                       requests.get("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
                        raw_input("Press enter to continue...")
