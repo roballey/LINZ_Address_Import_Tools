@@ -70,7 +70,7 @@ with open('file_list.csv', 'rb') as csvfile:
                     if options.verbose:
                        print("Finding %s in zip file ..." % place)
                     with zipfile.ZipFile('linz_places.zip') as placesZip:
-                      #try:
+                      try:
                          with placesZip.open(osc_file_name) as osc_file:
                            for line in osc_file:
                               coords = lat_lon.search(str(line))
@@ -84,9 +84,9 @@ with open('file_list.csv', 'rb') as csvfile:
                                  if street:
                                     #print (street.group(1))
                                     addr_streets.add(street.group(1))
-                      #except:
-                      #   print("Error extracting %s from zip file" % osc_file_name)
-                      #   continue
+                      except:
+                         print("Error extracting %s from zip file" % osc_file_name)
+                         continue
                     
                     print ("Place: %s,  Bound box: %f, %f, %f, %f, Imported on %s" % (place, south, west, north, east, date))
                     
