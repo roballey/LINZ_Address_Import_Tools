@@ -70,19 +70,23 @@ with open('file_list.csv', 'rb') as csvfile:
                     if options.verbose:
                        print("Finding %s in zip file ..." % place)
                     with zipfile.ZipFile('linz_places.zip') as placesZip:
-                      with placesZip.open(osc_file_name) as osc_file:
-                        for line in osc_file:
-                           coords = lat_lon.search(str(line))
-                           if coords:
-                              south = min(south, float(coords.group(1)))
-                              north = max(north, float(coords.group(1)))
-                              west = min(west, float(coords.group(2)))
-                              east = max(east, float(coords.group(2)))
-                           else:
-                              street = addr_street.search(str(line))
-                              if street:
-                                 #print (street.group(1))
-                                 addr_streets.add(street.group(1))
+                      #try:
+                         with placesZip.open(osc_file_name) as osc_file:
+                           for line in osc_file:
+                              coords = lat_lon.search(str(line))
+                              if coords:
+                                 south = min(south, float(coords.group(1)))
+                                 north = max(north, float(coords.group(1)))
+                                 west = min(west, float(coords.group(2)))
+                                 east = max(east, float(coords.group(2)))
+                              else:
+                                 street = addr_street.search(str(line))
+                                 if street:
+                                    #print (street.group(1))
+                                    addr_streets.add(street.group(1))
+                      #except:
+                      #   print("Error extracting %s from zip file" % osc_file_name)
+                      #   continue
                     
                     print ("Place: %s,  Bound box: %f, %f, %f, %f, Imported on %s" % (place, south, west, north, east, date))
                     
@@ -105,8 +109,7 @@ with open('file_list.csv', 'rb') as csvfile:
                     for way in result.ways:
                         highway = way.tags.get("highway", "n/a")
                         if (highway != "footway") and (highway != "cycleway") and (highway != "service") and \
-                           (highway != "motorway_link") and (highway != "path") and (highway != "steps") and \
-                           (highway != "planned") and (highway != "track"):
+                           (highway != "motorway_link") and (highway != "path") and (highway != "steps"):
                            name = way.tags.get("name", "n/a")
                            highway_streets.add(name)
                            if options.verbose:
