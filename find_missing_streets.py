@@ -15,6 +15,8 @@ MAX_LINES_CSV = 3122
 parser = OptionParser()
 parser.add_option("-d", "--date", dest="date",
                   help="Only check those imports after the specified date (YYYYMMDD)")
+parser.add_option("-o", "--output", dest="output",
+                  help="Write output to a file for later processing")
 parser.add_option("-p", "--place", dest="place",
                   help="Only check those imports that match the place name (regexp supproted)")
 parser.add_option("-u", "--uploader", dest="uploader",
@@ -44,6 +46,8 @@ if options.place != None:
 if options.date != None:
    print("Filtering by date %s" % options.date)
 
+if options.output != None:
+   out_file = open(options.output, "wt")
 
 with open('file_list.csv', 'rb') as csvfile:
     csvreader = csv.DictReader(csvfile)
@@ -89,6 +93,8 @@ with open('file_list.csv', 'rb') as csvfile:
                          continue
                     
                     print ("Place: %s,  Bound box: %f, %f, %f, %f, Imported on %s" % (place, south, west, north, east, date))
+                    if options.output != None:
+                       out_file.write("%s,%s,%s,%s,%s,%s\n" % (place,south,west,north,east,date))
                     
                     #-----------------------------------------------------------------------------
                     # Read highways within bounding box from OSM
@@ -123,13 +129,16 @@ with open('file_list.csv', 'rb') as csvfile:
                     for street in addr_streets:
                        if street not in highway_streets:
                           print("Street: %s DOES NOT EXIST AS A HIGHWAY" % street)
-                          if options.josm:
+                          if options.josm or (options.output != None):
                             # Get addr:street nodes for missing street and use the first to build the JOSM objects list
                             result = api.query("""
                                node(%f,%f,%f,%f) ["addr:street"="%s"];
                                out meta;
                                """ % (south, west, north, east,street))
-                            objects = objects + 'n' + str(result.nodes[0].id) + ','
+                            if len(result.nodes) > 0:
+                               objects = objects + 'n' + str(result.nodes[0].id) + ','
+                               if options.output != None:
+                                  out_file.write("   %s,%s\n" % (street, result.nodes[0].id))
                           missing=1
                           
                     print
@@ -139,3 +148,6 @@ with open('file_list.csv', 'rb') as csvfile:
                        print("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
                        requests.get("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
                        raw_input("Press enter to continue...")
+
+if options.output != None:
+   out_file.close() 
