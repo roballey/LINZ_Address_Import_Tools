@@ -4,10 +4,20 @@ import overpy
 import zipfile
 import re
 import requests
+import xml.etree.ElementTree as ET
+
 
 from optparse import OptionParser
 
+class bbox:
+   south=90.0
+   west=180.0
+   north=-90.0
+   east=0.0
+
 MAX_LINES_CSV = 3122
+
+expansion = 0.00010
 
 #-----------------------------------------------------------------------------
 # Parse command line options
@@ -59,95 +69,119 @@ with open('file_list.csv', 'rb') as csvfile:
               date = row['date']
               place = row['place']
 
+              missing = 0
+              objects = ''
+
               if (options.place == None) or (place_regex.match(place)):
                  if (options.date == None) or (date > options.date):
                     osc_file_name = "linz_places/" + place + ".osc"
-                    
-                    # Find bounding box of nodes in OSC file
-                    south=90.0
-                    west=180.0
-                    north=-90.0
-                    east=0.0
+
+                    if options.output != None:
+                       out_file.write("%s\n" % place)
+
                     addr_streets = set()
                     lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
                     addr_street = re.compile('"addr:street" v="(.*?)"')
-                    if options.verbose:
-                       print("Finding %s in zip file ..." % place)
                     with zipfile.ZipFile('linz_places.zip') as placesZip:
                       try:
                          with placesZip.open(osc_file_name) as osc_file:
-                           for line in osc_file:
-                              coords = lat_lon.search(str(line))
-                              if coords:
-                                 south = min(south, float(coords.group(1)))
-                                 north = max(north, float(coords.group(1)))
-                                 west = min(west, float(coords.group(2)))
-                                 east = max(east, float(coords.group(2)))
-                              else:
-                                 street = addr_street.search(str(line))
-                                 if street:
-                                    #print (street.group(1))
-                                    addr_streets.add(street.group(1))
+
+                            root = ET.parse(osc_file).getroot()
+                            
+                            streets = {}
+                            
+                            for node in root.iter('node'):
+                               for tag in node.iter('tag'):
+                                  if tag.attrib.get('k') == 'addr:street':
+                                     street = tag.attrib.get('v')
+
+                                     if street not in streets:
+                                       streets[street] = bbox()
+
+                                     streets[street].south = min(streets[street].south, float(node.attrib.get('lat')))
+                                     streets[street].north = max(streets[street].north, float(node.attrib.get('lat')))
+                                     streets[street].west  = min(streets[street].west, float(node.attrib.get('lon')))
+                                     streets[street].east  = max(streets[street].east, float(node.attrib.get('lon')))
+                            
+                            for name in streets:
+                               if options.verbose:
+                                  print ("Address Street '%s' [%f, %f, %f, %f]" % (name, streets[name].south, streets[name].west, streets[name].north, streets[name].east))
+                            
+                               # Expand bounding box
+                               south = streets[name].south * (1.0 + expansion)
+                               north = streets[name].north * (1.0 - expansion)
+                               east = streets[name].east * (1.0 + expansion)
+                               west = streets[name].west * (1.0 - expansion)
+
+                               # Download highway=* within bounding box
+                               result = api.query("""
+                                   way(%f,%f,%f,%f) ["highway"];
+                                   out body;
+                                   """ % (south, west, north, east))
+                               
+                               #if options.verbose:
+                               #   print("Got %d ways from OSM" % len(result.ways))      
+
+                               highway_streets = set()
+
+                               for way in result.ways:
+                                   highway = way.tags.get("highway", "n/a")
+                                   if (highway != "footway") and (highway != "cycleway") and (highway != "service") and \
+                                      (highway != "motorway_link") and (highway != "path") and (highway != "steps"):
+                                      highway_name = way.tags.get("name", "n/a")
+
+                                      if highway_name not in highway_streets:
+                                         highway_streets.add(highway_name)
+                                         if options.verbose:
+                                            print("Highway Name: %s \tType: %s" % (highway_name, highway))
+
+                               if options.verbose:
+                                  print("Got %d highways from OSM" % len(highway_streets))      
+
+                               #-----------------------------------------------------------------------------
+                               # If name is not one of the highways downloads, street is missing
+                               #-----------------------------------------------------------------------------
+                               if name not in highway_streets:
+                                     missing += 1
+
+                                     print("*** Address Street: %s DOES NOT HAVE A HIGHWAY" % name)
+
+                                     if options.josm or (options.output != None):
+                                        # Get addr:street nodes for missing street and use the first to build the JOSM objects list
+                                        result = api.query("""
+                                           node(%f,%f,%f,%f) ["addr:street"="%s"];
+                                           out meta;
+                                           """ % (south, west, north, east,name))
+
+                                        if len(result.nodes) > 0:
+                                           objects = objects + 'n' + str(result.nodes[0].id) + ','
+                                           if options.output != None:
+                                              out_file.write("   %s,%s\n" % (name, result.nodes[0].id))
+
+                               if options.verbose:
+                                  print ('')
+                               if options.output != None:
+                                  out_file.flush()
+
+
+
                       except:
                          print("Error extracting %s from zip file" % osc_file_name)
                          continue
                     
-                    print ("Place: %s,  Bound box: %f, %f, %f, %f, Imported on %s" % (place, south, west, north, east, date))
-                    if options.output != None:
-                       out_file.write("%s,%s,%s,%s,%s,%s\n" % (place,south,west,north,east,date))
-                    
                     #-----------------------------------------------------------------------------
                     # Read highways within bounding box from OSM
                     #-----------------------------------------------------------------------------
-                    south = south * 1.005
-                    north = north * 0.995
-                    east = east * 1.005
-                    west = west * 0.995
                     
-                    # fetch all ways
-                    result = api.query("""
-                        way(%f,%f,%f,%f) ["highway"];
-                        out body;
-                        """ % (south, west, north, east))
-                    
-                    highway_streets = set()
-                    
-                    for way in result.ways:
-                        highway = way.tags.get("highway", "n/a")
-                        if (highway != "footway") and (highway != "cycleway") and (highway != "service") and \
-                           (highway != "motorway_link") and (highway != "path") and (highway != "steps"):
-                           name = way.tags.get("name", "n/a")
-                           highway_streets.add(name)
-                           if options.verbose:
-                              print("Name: %s \tHighway: %s" % (name, highway))
-                    
-                    #-----------------------------------------------------------------------------
-                    # Find streets from addresses that don't exist
-                    #-----------------------------------------------------------------------------
-                    missing = 0
-                    objects = ''
-                    for street in addr_streets:
-                       if street not in highway_streets:
-                          print("Street: %s DOES NOT EXIST AS A HIGHWAY" % street)
-                          if options.josm or (options.output != None):
-                            # Get addr:street nodes for missing street and use the first to build the JOSM objects list
-                            result = api.query("""
-                               node(%f,%f,%f,%f) ["addr:street"="%s"];
-                               out meta;
-                               """ % (south, west, north, east,street))
-                            if len(result.nodes) > 0:
-                               objects = objects + 'n' + str(result.nodes[0].id) + ','
-                               if options.output != None:
-                                  out_file.write("   %s,%s\n" % (street, result.nodes[0].id))
-                          missing=1
-                          
-                    print
+              if missing > 0:
+                 print("Place '%s' has %d missing highways %s" % (place , missing, objects))
 
-                    if ((missing == 1) and (options.josm)):
-                       print("Starting JOSM...")
-                       print("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
-                       requests.get("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
-                       raw_input("Press enter to continue...")
+                 if (options.josm):
+                    print("Starting JOSM...")
+                    print("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
+                    requests.get("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
+                    raw_input("Press enter to continue...")
+
 
 if options.output != None:
    out_file.close() 
