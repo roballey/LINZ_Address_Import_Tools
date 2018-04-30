@@ -5,6 +5,7 @@ import zipfile
 import re
 import requests
 import xml.etree.ElementTree as ET
+import sys
 
 
 from optparse import OptionParser
@@ -15,9 +16,30 @@ class bbox:
    north=-90.0
    east=0.0
 
+   def update(self, lat, lon):
+      self.south = min(self.south, lat)
+      self.north = max(self.north, lat)
+      self.east  = max(self.east, lon)
+      self.west  = min(self.west, lon)
+
+   def expand(self, factor):
+      self.south *= (1.0 + factor)
+      self.north *= (1.0 - factor)
+      self.east  *= (1.0 + factor)
+      self.west  *= (1.0 - factor)
+
+   # Note: minimum is unit less
+   def expand_at_least(self, factor, minimum):
+      self.expand(factor)
+
+      while (abs((self.north-self.south)*(self.west-self.east)) < minimum):
+         self.expand(factor)
+
 MAX_LINES_CSV = 3122
 
-expansion = 0.00010
+expansion_factor = 0.00010
+min_area = 0.002
+
 
 #-----------------------------------------------------------------------------
 # Parse command line options
@@ -85,6 +107,8 @@ with open('file_list.csv', 'rb') as csvfile:
                     with zipfile.ZipFile('linz_places.zip') as placesZip:
                       try:
                          with placesZip.open(osc_file_name) as osc_file:
+                            if options.verbose:
+                               print("Processing '%s'" % osc_file_name)
 
                             root = ET.parse(osc_file).getroot()
                             
@@ -98,26 +122,19 @@ with open('file_list.csv', 'rb') as csvfile:
                                      if street not in streets:
                                        streets[street] = bbox()
 
-                                     streets[street].south = min(streets[street].south, float(node.attrib.get('lat')))
-                                     streets[street].north = max(streets[street].north, float(node.attrib.get('lat')))
-                                     streets[street].west  = min(streets[street].west, float(node.attrib.get('lon')))
-                                     streets[street].east  = max(streets[street].east, float(node.attrib.get('lon')))
+                                     streets[street].update(float(node.attrib.get('lat')), float(node.attrib.get('lon')))
                             
                             for name in streets:
                                if options.verbose:
                                   print ("Address Street '%s' [%f, %f, %f, %f]" % (name, streets[name].south, streets[name].west, streets[name].north, streets[name].east))
                             
-                               # Expand bounding box
-                               south = streets[name].south * (1.0 + expansion)
-                               north = streets[name].north * (1.0 - expansion)
-                               east = streets[name].east * (1.0 + expansion)
-                               west = streets[name].west * (1.0 - expansion)
-
+                               # Expand bounding box to try and ensure we find associated highway
+                               streets[name].expand_at_least(expansion_factor, min_area)
                                # Download highway=* within bounding box
                                result = api.query("""
                                    way(%f,%f,%f,%f) ["highway"];
                                    out body;
-                                   """ % (south, west, north, east))
+                                   """ % (streets[name].south, streets[name].west, streets[name].north, streets[name].east))
                                
                                #if options.verbose:
                                #   print("Got %d ways from OSM" % len(result.ways))      
@@ -165,8 +182,11 @@ with open('file_list.csv', 'rb') as csvfile:
 
 
 
+                      except(KeyboardInterrupt):
+                         print("\nQuitting")
+                         quit()
                       except:
-                         print("Error extracting %s from zip file" % osc_file_name)
+                         print("Error reading %s from zip file - %s" % (osc_file_name, sys.exc_info()[0]))
                          continue
                     
                     #-----------------------------------------------------------------------------
