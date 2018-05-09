@@ -108,7 +108,7 @@ with open('file_list.csv', 'rb') as csvfile:
                       try:
                          with placesZip.open(osc_file_name) as osc_file:
                             if options.verbose:
-                               print("Processing '%s'" % osc_file_name)
+                               print("Processing '%s'" % place)
 
                             root = ET.parse(osc_file).getroot()
                             
@@ -126,7 +126,7 @@ with open('file_list.csv', 'rb') as csvfile:
                             
                             for name in streets:
                                if options.verbose:
-                                  print ("Address Street '%s' [%f, %f, %f, %f]" % (name, streets[name].south, streets[name].west, streets[name].north, streets[name].east))
+                                  print ("   Address Street '%s' [%f, %f, %f, %f]" % (name, streets[name].south, streets[name].west, streets[name].north, streets[name].east))
                             
                                # Expand bounding box to try and ensure we find associated highway
                                streets[name].expand_at_least(expansion_factor, min_area)
@@ -143,14 +143,14 @@ with open('file_list.csv', 'rb') as csvfile:
 
                                for way in result.ways:
                                    highway = way.tags.get("highway", "n/a")
-                                   if (highway != "footway") and (highway != "cycleway") and (highway != "service") and \
+                                   if (highway != "footway") and (highway != "cycleway") and \
                                       (highway != "motorway_link") and (highway != "path") and (highway != "steps"):
                                       highway_name = way.tags.get("name", "n/a")
 
                                       if highway_name not in highway_streets:
                                          highway_streets.add(highway_name)
                                          if options.verbose:
-                                            print("Highway Name: %s \tType: %s" % (highway_name, highway))
+                                            print("   Highway Name: %s \tType: %s" % (highway_name, highway))
 
                                if options.verbose:
                                   print("Got %d highways from OSM" % len(highway_streets))      
@@ -168,7 +168,7 @@ with open('file_list.csv', 'rb') as csvfile:
                                         result = api.query("""
                                            node(%f,%f,%f,%f) ["addr:street"="%s"];
                                            out meta;
-                                           """ % (south, west, north, east,name))
+                                           """ % (streets[name].south, streets[name].west, streets[name].north, streets[name].east, name))
 
                                         if len(result.nodes) > 0:
                                            objects = objects + 'n' + str(result.nodes[0].id) + ','
