@@ -45,8 +45,6 @@ lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
 #-----------------------------------------------------------------------------
 # Read data from address import tracking spreadsheet
 #-----------------------------------------------------------------------------
-# Needed to open in t mode on windows
-# TODO: Confirm if Linux needs b mode
 with open(options.list_filename, 'rt') as csvfile:
     csvreader = csv.DictReader(csvfile)
     row_num = 0
