@@ -39,6 +39,7 @@ MAX_LINES_CSV = 3122
 
 expansion_factor = 0.00010
 min_area = 0.002
+seperator='( |-)'
 
 
 #-----------------------------------------------------------------------------
@@ -158,7 +159,22 @@ with open('file_list.csv', 'rb') as csvfile:
                                #-----------------------------------------------------------------------------
                                # If name is not one of the highways downloads, street is missing
                                #-----------------------------------------------------------------------------
-                               if name not in highway_streets:
+
+                               if '-' in name:
+                                 name_match = name.replace("-",seperator)
+                                 name_regex=re.compile(name_match)
+                                 found = False
+                                 for street in highway_streets:
+                                   if (name_regex.match(street)):
+                                     found = True
+                                     break
+                                
+                               elif name not in highway_streets:
+                                 found = False
+                               else:
+                                 found = True
+
+                               if not found:
                                      missing += 1
 
                                      print("*** Address Street: %s DOES NOT HAVE A HIGHWAY" % name)
