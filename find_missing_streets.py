@@ -46,8 +46,10 @@ seperator='( |-)'
 # Parse command line options
 #-----------------------------------------------------------------------------
 parser = OptionParser()
-parser.add_option("-d", "--date", dest="date",
+parser.add_option("-a", "--after", dest="after",
                   help="Only check those imports after the specified date (YYYYMMDD)")
+parser.add_option("-b", "--before", dest="before",
+                  help="Only check those imports before the specified date (YYYYMMDD)")
 parser.add_option("-o", "--output", dest="output",
                   help="Write output to a file for later processing")
 parser.add_option("-p", "--place", dest="place",
@@ -76,8 +78,10 @@ print("Searching for locations imported by '%s'" % options.uploader)
 if options.place != None:
    print("Filtering by place %s" % options.place)
    place_regex=re.compile(options.place)
-if options.date != None:
-   print("Filtering by date %s" % options.date)
+if options.before != None:
+   print("Filtering by before date %s" % options.before)
+if options.after != None:
+   print("Filtering by after date %s" % options.after)
 
 if options.output != None:
    out_file = open(options.output, "wt")
@@ -96,7 +100,8 @@ with open('file_list.csv', 'rb') as csvfile:
               objects = ''
 
               if (options.place == None) or (place_regex.match(place)):
-                 if (options.date == None) or (date > options.date):
+                 if ((options.after == None) or (date > options.after)) and \
+                    ((options.before == None) or (date < options.before)):
                     osc_file_name = "linz_places/" + place + ".osc"
 
                     if options.output != None:
