@@ -51,6 +51,7 @@ with open(options.list_filename, 'rt') as csvfile:
     places=0
     checked = 0
     found = 0
+    total_num = 0
     for row in csvreader:
         row_num = row_num + 1
         places += 1
@@ -62,6 +63,7 @@ with open(options.list_filename, 'rt') as csvfile:
         if (row['uploader'] == ''):
            checked += 1
            place = row['place']
+           num = int(row['num_addresses'])
            if options.verbose:
               print("Checking %s" % place)
 
@@ -78,11 +80,12 @@ with open(options.list_filename, 'rt') as csvfile:
                          ((options.left == None)  or (float(coords.group(2)) < options.left)) and
                          ((options.right == None) or (float(coords.group(2)) > options.right))):
                        found += 1
-                       print ("%s - to be imported, Lat %.3f Long %.3f" % (place, float(coords.group(1)), float(coords.group(2))))
+                       total_num += num
+                       print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), num))
                        break
              except:
                 print("***ERROR occured extracting %s" % osc_file_name)
 
-    print("Total of %d places" % places)
+    print("Total of %d places with %d addresses" % (places, total_num))
     print("Checked %d places still to be imported" % checked)
     print("Found %d places still to be imported" % found)
