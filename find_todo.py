@@ -40,6 +40,7 @@ if (options.left != None):
    print("   left (west) of %f" % options.left)
 if (options.right != None):
    print("   right (east) of %f" % options.right)
+print("")
 
 lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
 #-----------------------------------------------------------------------------
@@ -47,6 +48,7 @@ lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
 #-----------------------------------------------------------------------------
 with open(options.list_filename, 'rt') as csvfile:
     csvreader = csv.DictReader(csvfile)
+
     row_num = 0
     total_places=0
     total_addresses=0
@@ -54,6 +56,14 @@ with open(options.list_filename, 'rt') as csvfile:
     checked_addresses = 0
     to_import_places = 0
     to_import_addresses = 0
+
+    if ((options.above != None) or 
+        (options.below != None) or 
+        (options.left != None)  or 
+        (options.right != None)) :
+
+      placesZip = zipfile.ZipFile(options.zip_filename)
+
     for row in csvreader:
 
         # Stop processing CSV file as soon as we get to row starting with "TOTAL"
@@ -80,28 +90,29 @@ with open(options.list_filename, 'rt') as csvfile:
                (options.left != None)  or 
                (options.right != None)) :
 
-             with zipfile.ZipFile(options.zip_filename) as placesZip:
-               try:
-                  with placesZip.open(osc_file_name) as osc_file:
-                    for line in osc_file:
-                       coords = lat_lon.search(str(line))
-                       if coords and \
-                          (((options.above == None) or (float(coords.group(1)) > options.above)) and
-                           ((options.below == None) or (float(coords.group(1)) < options.below)) and
-                           ((options.left == None)  or (float(coords.group(2)) < options.left)) and
-                           ((options.right == None) or (float(coords.group(2)) > options.right))):
-                         to_import_places += 1
-                         to_import_addresses += addresses
-                         print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), addresses))
-                         break
-               except:
-                  print("***ERROR occured extracting %s" % osc_file_name)
+             try:
+               with placesZip.open(osc_file_name) as osc_file:
+                 for line in osc_file:
+                    coords = lat_lon.search(str(line))
+                    if coords and \
+                       (((options.above == None) or (float(coords.group(1)) > options.above)) and
+                        ((options.below == None) or (float(coords.group(1)) < options.below)) and
+                        ((options.left == None)  or (float(coords.group(2)) < options.left)) and
+                        ((options.right == None) or (float(coords.group(2)) > options.right))):
+                      to_import_places += 1
+                      to_import_addresses += addresses
+                      print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), addresses))
+                      break
+             except:
+               print("***ERROR occured extracting %s" % osc_file_name)
 
            else:
              to_import_places += 1
              to_import_addresses += addresses
              print ("%s - to be imported, %d addresses" % (place, addresses))
 
-    print("Total of %d places with %d addresses" % (total_places, total_addresses))
+
+
+    print("\nTotal of %d places with %d addresses" % (total_places, total_addresses))
     print("Checked %d places still to be imported with %d addresses" % (checked_places, checked_addresses))
     print("Found %d places still to be imported with %d addresses" % (to_import_places, to_import_addresses))
