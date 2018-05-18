@@ -48,22 +48,28 @@ lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
 with open(options.list_filename, 'rt') as csvfile:
     csvreader = csv.DictReader(csvfile)
     row_num = 0
-    places=0
-    checked = 0
-    found = 0
-    total_num = 0
+    total_places=0
+    total_addresses=0
+    checked_places = 0
+    checked_addresses = 0
+    to_import_places = 0
+    to_import_addresses = 0
     for row in csvreader:
-        row_num = row_num + 1
-        places += 1
 
         # Stop processing CSV file as soon as we get to row starting with "TOTAL"
         if row['place'] == 'TOTAL':
            break
 
+        addresses = int(row['num_addresses'])
+
+        row_num = row_num + 1
+        total_places += 1
+        total_addresses += addresses
+
         if (row['uploader'] == ''):
-           checked += 1
+           checked_places += 1
            place = row['place']
-           num = int(row['num_addresses'])
+           checked_addresses += addresses
            if options.verbose:
               print("Checking %s" % place)
 
@@ -84,18 +90,18 @@ with open(options.list_filename, 'rt') as csvfile:
                            ((options.below == None) or (float(coords.group(1)) < options.below)) and
                            ((options.left == None)  or (float(coords.group(2)) < options.left)) and
                            ((options.right == None) or (float(coords.group(2)) > options.right))):
-                         found += 1
-                         total_num += num
-                         print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), num))
+                         to_import_places += 1
+                         to_import_addresses += addresses
+                         print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), addresses))
                          break
                except:
                   print("***ERROR occured extracting %s" % osc_file_name)
 
            else:
-             found += 1
-             total_num += num
-             print ("%s - to be imported, %d addresses" % (place, num))
+             to_import_places += 1
+             to_import_addresses += addresses
+             print ("%s - to be imported, %d addresses" % (place, addresses))
 
-    print("Total of %d places" % places)
-    print("Checked %d places still to be imported" % checked)
-    print("Found %d places still to be imported with %d addresses" % (found, total_num))
+    print("Total of %d places with %d addresses" % (total_places, total_addresses))
+    print("Checked %d places still to be imported with %d addresses" % (checked_places, checked_addresses))
+    print("Found %d places still to be imported with %d addresses" % (to_import_places, to_import_addresses))
