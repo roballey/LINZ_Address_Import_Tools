@@ -68,24 +68,34 @@ with open(options.list_filename, 'rt') as csvfile:
               print("Checking %s" % place)
 
            osc_file_name = "linz_places/" + place + ".osc"
-           
-           with zipfile.ZipFile(options.zip_filename) as placesZip:
-             try:
-                with placesZip.open(osc_file_name) as osc_file:
-                  for line in osc_file:
-                     coords = lat_lon.search(str(line))
-                     if coords and \
-                        (((options.above == None) or (float(coords.group(1)) > options.above)) and
-                         ((options.below == None) or (float(coords.group(1)) < options.below)) and
-                         ((options.left == None)  or (float(coords.group(2)) < options.left)) and
-                         ((options.right == None) or (float(coords.group(2)) > options.right))):
-                       found += 1
-                       total_num += num
-                       print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), num))
-                       break
-             except:
-                print("***ERROR occured extracting %s" % osc_file_name)
+          
+           if ((options.above != None) or 
+               (options.below != None) or 
+               (options.left != None)  or 
+               (options.right != None)) :
 
-    print("Total of %d places with %d addresses" % (places, total_num))
+             with zipfile.ZipFile(options.zip_filename) as placesZip:
+               try:
+                  with placesZip.open(osc_file_name) as osc_file:
+                    for line in osc_file:
+                       coords = lat_lon.search(str(line))
+                       if coords and \
+                          (((options.above == None) or (float(coords.group(1)) > options.above)) and
+                           ((options.below == None) or (float(coords.group(1)) < options.below)) and
+                           ((options.left == None)  or (float(coords.group(2)) < options.left)) and
+                           ((options.right == None) or (float(coords.group(2)) > options.right))):
+                         found += 1
+                         total_num += num
+                         print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), num))
+                         break
+               except:
+                  print("***ERROR occured extracting %s" % osc_file_name)
+
+           else:
+             found += 1
+             total_num += num
+             print ("%s - to be imported, %d addresses" % (place, num))
+
+    print("Total of %d places" % places)
     print("Checked %d places still to be imported" % checked)
-    print("Found %d places still to be imported" % found)
+    print("Found %d places still to be imported with %d addresses" % (found, total_num))
