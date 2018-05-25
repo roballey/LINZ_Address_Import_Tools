@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# NOTE: Known limitation: If a street appears in the OSC but was not imported and it doesn't exist as a highway in OSM
+#       it will still be reported as a missing street
 import csv
 import overpy
 import zipfile
@@ -29,13 +31,11 @@ class bbox:
 
    # Note: minimum is unit less
    def expand_at_least(self, factor, minimum):
-      self.expand(factor)
-
       while (abs((self.north-self.south)*(self.west-self.east)) < minimum):
          self.expand(factor)
 
-expansion_factor = 0.00010
-min_area = 0.002
+expansion_factor = 0.00001
+min_area = 0.000001
 seperator='( |-)'
 
 
@@ -79,6 +79,7 @@ if options.before != None:
    print("Filtering by before date %s" % options.before)
 if options.after != None:
    print("Filtering by after date %s" % options.after)
+sys.stdout.flush()
 
 if options.output != None:
    out_file = open(options.output, "wt")
@@ -109,12 +110,11 @@ with open('file_list.csv', 'rb') as csvfile:
                     out_file.write("%s\n" % place)
 
                  addr_streets = set()
-                 lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
-                 addr_street = re.compile('"addr:street" v="(.*?)"')
                  try:
                     with placesZip.open(osc_file_name) as osc_file:
                        if options.verbose:
                           print("Processing '%s'" % place)
+                          sys.stdout.flush()
 
                        root = ET.parse(osc_file).getroot()
                        
@@ -133,6 +133,7 @@ with open('file_list.csv', 'rb') as csvfile:
                        for name in streets:
                           if options.verbose:
                              print ("   Address Street '%s' [%f, %f, %f, %f]" % (name, streets[name].south, streets[name].west, streets[name].north, streets[name].east))
+                             sys.stdout.flush()
                        
                           # Expand bounding box to try and ensure we find associated highway
                           streets[name].expand_at_least(expansion_factor, min_area)
@@ -156,10 +157,7 @@ with open('file_list.csv', 'rb') as csvfile:
                                  if highway_name not in highway_streets:
                                     highway_streets.add(highway_name)
                                     if options.verbose:
-                                       print("   Highway Name: %s \tType: %s" % (highway_name, highway))
-
-                          if options.verbose:
-                             print("Got %d highways from OSM" % len(highway_streets))      
+                                       print("   Highway Name: %s \tType: %s" % (highway_name, highway)).encode('ascii', 'ignore')
 
                           #-----------------------------------------------------------------------------
                           # If name is not one of the highways downloads, street is missing
@@ -183,6 +181,7 @@ with open('file_list.csv', 'rb') as csvfile:
                                 missing += 1
 
                                 print("*** Address Street: %s DOES NOT HAVE A HIGHWAY" % name)
+                                sys.stdout.flush()
 
                                 if options.josm or (options.output != None):
                                    # Get addr:street nodes for missing street and use the first to build the JOSM objects list
