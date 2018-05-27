@@ -37,6 +37,9 @@ parser.add_option("-p", "--place", dest="place",
                   help="Only check those imports that match the place name (regexp supported)")
 parser.add_option("-l", "--left", dest="left", type="float", 
                   help="Specify longitude left of which to find places to import")
+parser.add_option("-m", "--mismatch",
+                  action="store_true", dest="mismatch", default=False,
+                  help="Report where the place type in OSM does not match that imported from OSC files")
 parser.add_option("-r", "--right", dest="right", type="float", 
                   help="Specify longitude right of which to find places to import")
 parser.add_option("-u", "--user",
@@ -186,7 +189,9 @@ with open(options.list_filename, 'rt') as csvfile:
              for node in result.nodes:
                if (node.tags.get("name", "UNKNOWN") == imported_place_name):
                  found_in_osm = True
-                 if (node.tags.get("place", "UNKNOWN") != imported_place_type):
+
+                 # TODO: This logic needs work since places from OSM use more values than the OSC files 
+                 if (options.mismatch and (node.tags.get("place", "UNKNOWN") != imported_place_type)):
                    mismatched_types += 1
                    print("'%s' uses type '%s' for address nodes but type '%s' on place node" % (imported_place_name, imported_place_type, node.tags.get("place", "UNKNOWN")))
                  if options.verbose:
@@ -206,5 +211,6 @@ with open(options.list_filename, 'rt') as csvfile:
     print("Checked %d places imported by '%s' with %d addresses" % (checked_places, options.user, checked_addresses))
     print("Found %d places imported by '%s' with %d addresses match restrictions" % (matching_places, options.user, matching_addresses))
     print("Found %d imported places that don't have a corresponding place node in OSM" % (not_in_osm))
-    print("Found %d imported places that mismatched types" % (mismatched_types))
+    if options.mismatch:
+      print("Found %d imported places that mismatched types" % (mismatched_types))
 
