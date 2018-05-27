@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # NOTE: Known limitation: If a street appears in the OSC but was not imported and it doesn't exist as a highway in OSM
 #       it will still be reported as a missing street
+#       Known limitation: Streets that cross multiple places will be tested and reported for each place
 import csv
 import overpy
 import zipfile
