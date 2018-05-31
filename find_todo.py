@@ -18,6 +18,8 @@ parser.add_option("-f", "--listfile",
                   help="Name of CSV file containing the status of the import")
 parser.add_option("-l", "--left", dest="left", type="float", 
                   help="Specify longitude left of which to find places to import")
+parser.add_option("-m", "--more", dest="more", type="int", 
+                  help="Only report places with more than this many addresses")
 parser.add_option("-r", "--right", dest="right", type="float", 
                   help="Specify longitude right of which to find places to import")
 parser.add_option("-v", "--verbose",
@@ -40,6 +42,8 @@ if (options.left != None):
    print("   left (west) of %f" % options.left)
 if (options.right != None):
    print("   right (east) of %f" % options.right)
+if (options.more != None):
+   print("   more than %d addresses" % options.more)
 print("")
 
 lat_lon = re.compile('node.*lat="(.*?)".*lon="(.*?)"')
@@ -99,14 +103,15 @@ with open(options.list_filename, 'rt') as csvfile:
                         ((options.below == None) or (float(coords.group(1)) < options.below)) and
                         ((options.left == None)  or (float(coords.group(2)) < options.left)) and
                         ((options.right == None) or (float(coords.group(2)) > options.right))):
-                      to_import_places += 1
-                      to_import_addresses += addresses
-                      print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), addresses))
-                      break
+                      if (options.more == None) or ( addresses > options.more):
+                        to_import_places += 1
+                        to_import_addresses += addresses
+                        print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), addresses))
+                        break
              except:
                print("***ERROR occured extracting %s" % osc_file_name)
 
-           else:
+           elif (options.more == None) or ( addresses > options.more):
              to_import_places += 1
              to_import_addresses += addresses
              print ("%s - to be imported, %d addresses" % (place, addresses))
