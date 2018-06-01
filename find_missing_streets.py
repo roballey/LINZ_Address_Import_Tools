@@ -139,10 +139,17 @@ with open('file_list.csv', 'rb') as csvfile:
                           # Expand bounding box to try and ensure we find associated highway
                           streets[name].expand_at_least(expansion_factor, min_area)
                           # Download highway=* within bounding box
-                          result = api.query("""
-                              way(%f,%f,%f,%f) ["highway"];
-                              out body;
-                              """ % (streets[name].south, streets[name].west, streets[name].north, streets[name].east))
+                          try:
+                            result = api.query("""
+                                way(%f,%f,%f,%f) ["highway"];
+                                out body;
+                                """ % (streets[name].south, streets[name].west, streets[name].north, streets[name].east))
+                          except(KeyboardInterrupt):
+                            print("\nQuitting")
+                            quit()
+                          except:
+                            print("Error unable to query OSM - %s" % (sys.exc_info()[0]))
+                            continue
                           
                           #if options.verbose:
                           #   print("Got %d ways from OSM" % len(result.ways))      
@@ -216,12 +223,17 @@ with open('file_list.csv', 'rb') as csvfile:
                  
            if missing > 0:
               print("Place '%s' has %d missing highways %s" % (place , missing, objects))
+              sys.stdout.flush()
 
               if (options.josm):
                  print("Starting JOSM...")
                  print("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
+                 sys.stdout.flush()
+
                  requests.get("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
+
                  raw_input("Press enter to continue...")
+                 sys.stdout.flush()
 
 
 if options.output != None:
