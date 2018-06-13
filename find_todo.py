@@ -25,6 +25,9 @@ parser.add_option("-r", "--right", dest="right", type="float",
 parser.add_option("-v", "--verbose",
                   action="store_true", dest="verbose", default=False,
                   help="Produce verbose output")
+parser.add_option("-x", "--extract",
+                  action="store_true", dest="extract", default=False,
+                  help="Extract osc and changeset tags from from zip archive")
 parser.add_option("-z", "--zipfile",
                   action="store", dest="zip_filename", default='linz_places.zip',
                   help="Name of zip file containing the OSC files to be imported")
@@ -106,7 +109,12 @@ with open(options.list_filename, 'rt') as csvfile:
                       if (options.more == None) or ( addresses > options.more):
                         to_import_places += 1
                         to_import_addresses += addresses
-                        print ("%s - to be imported, Lat %.3f Long %.3f %d addresses" % (place, float(coords.group(1)), float(coords.group(2)), addresses))
+                        print ("%s - to be imported, %d addresses" % (place, addresses))
+
+                        if options.extract:
+                          placesZip.extract(osc_file_name)
+                          placesZip.extract("linz_places/" + place + ".changeset_tags")
+
                         break
              except:
                print("***ERROR occured extracting %s" % osc_file_name)
