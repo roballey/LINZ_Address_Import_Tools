@@ -23,13 +23,6 @@ parser.add_option("-f", "--inputfile",
                   help="Name of the input CSV file containing roads to be converted")
 (options, args) = parser.parse_args()
 
-#-----------------------------------------------------------------------------
-# Display start message
-#-----------------------------------------------------------------------------
-print("Converting LINZ roads CSV file (extract)...")
-print("")
-sys.stdout.flush()
-
 osmId = OSMId()
 
 print("<?xml version='1.0' encoding='UTF-8'?>")
@@ -45,21 +38,24 @@ with open(options.input_filename, 'rt') as csvfile:
 
     for row in csvreader:
 
-        nodesIds = [] 
-        m = re.match("MULTILINESTRING \(\((.*)\)\)", row['WKT'])
+        # FIXME: Temporarily limit to Auckland roads
+        if (row['left_town_city'] == 'Auckland'):
 
-        # Write each co-ordinate as an OSM node
-        for coord in m.group(1).split(','):
-            (lon, lat) = coord.split(' ')
-            print("  <node id='%d' action='modify' lat='%s' lon='%s' />" % ( osmId.New(), lat, lon))
-            nodesIds.append(osmId.number)
+           nodesIds = [] 
+           m = re.match("MULTILINESTRING \(\((.*)\)\)", row['WKT'])
 
-        # Write the street as an OSM way using each of the nodes
-        print("  <way id='%d' action='modify'>" % osmId.New())
-        for nodeId in nodesIds:
-            print("    <nd ref='%d' />" % nodeId)
-        print("    <tag k='highway' v='unclassified' />")
-        print("    <tag k='name' v='%s' />" % (row['full_road_name']))
-        print("  </way>")
+           # Write each co-ordinate as an OSM node
+           for coord in m.group(1).split(','):
+               (lon, lat) = coord.split(' ')
+               print("  <node id='%d' action='modify' lat='%s' lon='%s' />" % ( osmId.New(), lat, lon))
+               nodesIds.append(osmId.number)
+
+           # Write the street as an OSM way using each of the nodes
+           print("  <way id='%d' action='modify'>" % osmId.New())
+           for nodeId in nodesIds:
+               print("    <nd ref='%d' />" % nodeId)
+           print("    <tag k='highway' v='unclassified' />")
+           print("    <tag k='name' v='%s' />" % (row['full_road_name'].replace("'","&apos;")))
+           print("  </way>")
 
 print("</osm>")
