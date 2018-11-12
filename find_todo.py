@@ -109,7 +109,7 @@ with open(options.list_filename, 'rt') as csvfile:
                       if (options.more == None) or ( addresses > options.more):
                         to_import_places += 1
                         to_import_addresses += addresses
-                        print ("%s - to be imported, %d addresses" % (place, addresses))
+                        print ("%s - %d addresses to be imported [%.3f,%.3f]" % (place, addresses, float(coords.group(1)), float(coords.group(2)) ) )
 
                         if options.extract:
                           placesZip.extract(osc_file_name)
@@ -122,7 +122,7 @@ with open(options.list_filename, 'rt') as csvfile:
            elif (options.more == None) or ( addresses > options.more):
              to_import_places += 1
              to_import_addresses += addresses
-             print ("%s - to be imported, %d addresses" % (place, addresses))
+             print ("%s - %d addresses to be imported" % (place, addresses))
 
 
 
