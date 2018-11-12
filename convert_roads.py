@@ -1,4 +1,8 @@
 #!/usr/bin/python
+#-----------------------------------------------------------------------------
+# Read road data from a LINZ roads-subsections-addressing.csv file and convert
+# to OSM format
+#-----------------------------------------------------------------------------
 import csv
 import re
 import sys
@@ -25,13 +29,15 @@ parser.add_option("-f", "--inputfile",
 
 osmId = OSMId()
 
+#-----------------------------------------------------------------------------
+# Output OSM file header
+#-----------------------------------------------------------------------------
 print("<?xml version='1.0' encoding='UTF-8'?>")
 print("<osm version='0.6' generator='JOSM'>")
 
 #-----------------------------------------------------------------------------
-# Read data from address import tracking spreadsheet
-# TODO: Could re-write to specify street name on command line and extract that
-#       street directly from original OSM CSV file
+# Read road data from a LINZ roads-subsections-addressing.csv file and convert
+# to OSM format
 #-----------------------------------------------------------------------------
 with open(options.input_filename, 'rt') as csvfile:
     csvreader = csv.DictReader(csvfile)
