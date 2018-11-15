@@ -22,39 +22,46 @@ class OSMId:
    def __init__(self):
      self.number = -30000
 
-   def Generate(self):
+   def generate(self):
      self.number = self.number - 1
      return self.number
 
-class bbox:
-   south=90.0
-   west=180.0
-   north=-90.0
-   east=0.0
+class Point:
+   def __init__(self,lat,lon):
+      self.lat=lat
+      self.lon=lon
 
-   def update(self, lat, lon):
-      #print("Update %.3f %.3f"%(lat,lon))
-      self.south = min(self.south, lat)
-      self.north = max(self.north, lat)
-      self.east  = max(self.east, lon)
-      self.west  = min(self.west, lon)
+class Bbox:
+   def __init__(self,north,south,east,west):
+      self.north = north
+      self.south = south
+      self.east = east
+      self.west = west
 
-   def contains(self, lat, lon):
-      #print("Is %.3f inside %.3f\n" % (lat, self.south))
-      if ((lat >= self.south) and
-          (lat <= self.north) and
-          (lon >= self.west) and
-          (lon <= self.east)):
-         #print("INSIDE: %.3f %.3f" % (lat, lon))
+class Polygon:
+   bbox = Bbox(-90.0, 90.0, 0.0, 180.0)
+
+   def update(self, point):
+      self.bbox.south = min(self.bbox.south, point.lat)
+      self.bbox.north = max(self.bbox.north, point.lat)
+      self.bbox.east  = max(self.bbox.east, point.lon)
+      self.bbox.west  = min(self.bbox.west, point.lon)
+      # TODO: also save point for when we extend contains method
+
+   def bbox_contains(self, lat, lon):
+      if ((lat >= self.bbox.south) and
+          (lat <= self.bbox.north) and
+          (lon >= self.bbox.west) and
+          (lon <= self.bbox.east)):
          return True
       else:
          return False
 
+   # TODO: After determining that the polygons bbox contains the point should determine
+   #       whether the point actually lies within the polygon
+   def contains(self, lat, lon):
+      return self.bbox_contains(lat, lon)
 
-class point:
-   def __init__(self,lat,lon):
-      self.lat=lat
-      self.lon=lon
 
 #-----------------------------------------------------------------------------
 # Parse command line options
@@ -69,18 +76,19 @@ parser.add_option("-f", "--inputfile",
 (options, args) = parser.parse_args()
 
 osmId = OSMId()
+boundsNode = re.compile("node.*lat='(.*)' lon='(.*)'")
+riverNodes = re.compile("LINESTRING \((.*)\)")
 
 #-----------------------------------------------------------------------------
 # Parse bounds file
 #-----------------------------------------------------------------------------
 if options.bounds_filename != None:
-  bounds = bbox()
+  bounds = Polygon()
   with open(options.bounds_filename, 'rt') as boundsfile:
     for line in boundsfile:
-      m = re.search("node.*lat='(.*)' lon='(.*)'", line)
-      if m != None:
-        bounds.update(float(m.group(1)), float(m.group(2)))
-  #print bounds.north, bounds.south, bounds.east, bounds.west
+      nodeCoords = boundsNode.search(line)
+      if nodeCoords != None:
+        bounds.update(Point(lat=float(nodeCoords.group(1)), lon=float(nodeCoords.group(2))))
 
 #-----------------------------------------------------------------------------
 # Output OSM file header
@@ -100,24 +108,24 @@ with open(options.input_filename, 'rt') as csvfile:
         nodes = []
         inBounds = False
 
-        m = re.match("LINESTRING \((.*)\)", row['WKT'])
+        m = riverNodes.match(row['WKT'])
 
         # Parse node co-ordinates and convert
         for coord in m.group(1).split(','):
             (x, y) = coord.split(' ')
             lon,lat = transform(inProj,outProj,x,y)
-            nodes.append(point(lat,lon))
+            nodes.append(Point(lat,lon))
             if ((options.bounds_filename != None) and (bounds.contains(lat,lon))):
                inBounds = True
 
         # Write each co-ordinate as an OSM node
         if ((options.bounds_filename == None) or (inBounds == True)):
            for node in nodes:
-              print("  <node id='%d' action='modify' lat='%s' lon='%s' />" % ( osmId.Generate(), node.lat, node.lon))
+              print("  <node id='%d' action='modify' lat='%s' lon='%s' />" % ( osmId.generate(), node.lat, node.lon))
               nodesIds.append(osmId.number)
 
            # Write the waterway as an OSM way using each of the nodes
-           print("  <way id='%d' action='modify'>" % osmId.Generate())
+           print("  <way id='%d' action='modify'>" % osmId.generate())
            for nodeId in nodesIds:
                print("    <nd ref='%d' />" % nodeId)
            # TODO: Is there anyway to automatically determine if the waterway is a river, stream or creek etc.?
