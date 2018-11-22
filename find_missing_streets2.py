@@ -1,6 +1,4 @@
 #!/usr/bin/python
-# FIXME: WIP This is the start of a re-write to download from OSM all highways for a place instead of donwloading street at a time,
-#            hopefully that will decrease the number of false positives
 # NOTE: Known limitation: If a street appears in the OSC but was not imported and it doesn't exist as a highway in OSM
 #       it will still be reported as a missing street
 #       Known limitation: Streets that cross multiple places will be tested and reported for each place
@@ -37,7 +35,9 @@ class bbox:
       while (abs((self.north-self.south)*(self.west-self.east)) < minimum):
          self.expand(factor)
 
-expansion_factor = 0.00001
+total_missing = 0
+total_places = 0
+expansion_factor = 0.00005
 min_area = 0.000001
 seperator_alt='( |-)'
 saint_alt='(St |Saint )'
@@ -123,6 +123,7 @@ with open('file_list.csv', 'rb') as csvfile:
                     with placesZip.open(osc_file_name) as osc_file:
                        if options.verbose:
                           print("Finding streets for '%s'" % place)
+                          total_places += 1
                           sys.stdout.flush()
 
                        root = ET.parse(osc_file).getroot()
@@ -134,38 +135,25 @@ with open('file_list.csv', 'rb') as csvfile:
                        for node in root.iter('node'):
                           for tag in node.iter('tag'):
                              if tag.attrib.get('k') == 'addr:street':
-                                street = tag.attrib.get('v')
+                                street_name = tag.attrib.get('v')
 
                                 # Add street to dictionary of unique street names
-                                if street not in address_streets:
-                                  address_streets[street] = bbox()
+                                if street_name not in address_streets:
+                                  address_streets[street_name] = bbox()
 
                                 # Update the bounding box for this current street
-                                address_streets[street].update(float(node.attrib.get('lat')), float(node.attrib.get('lon')))
+                                address_streets[street_name].update(float(node.attrib.get('lat')), float(node.attrib.get('lon')))
 
                                 place_bounds.update(float(node.attrib.get('lat')), float(node.attrib.get('lon')))
                       
                        # Process each street for a place
-                       for name in address_streets:
+                       for address_street in address_streets:
                           if options.verbose:
-                             print ("   Address Street '%s' [%f, %f, %f, %f]" % (name, address_streets[name].south, address_streets[name].west, address_streets[name].north, address_streets[name].east))
+                             print ("   Address Street '%s' [%f, %f, %f, %f]" % (address_street, address_streets[address_street].south, address_streets[address_street].west, address_streets[address_street].north, address_streets[address_street].east))
                              sys.stdout.flush()
-                       
-                          # Expand bounding box to try and ensure we find associated highway
-                          address_streets[name].expand_at_least(expansion_factor, min_area)
-
-                          #highway_streets = set()
-
-                          #for way in result.ways:
-                          #    highway = way.tags.get("highway", "n/a")
-                          #    if (highway != "footway") and (highway != "cycleway") and \
-                          #       (highway != "motorway_link") and (highway != "path") and (highway != "steps"):
-                          #       highway_name = way.tags.get("name", "n/a")
-
-                          #       if highway_name not in highway_streets:
-                          #          highway_streets.add(highway_name)
-                          #          if options.verbose:
-                          #             print("   Highway Name: %s \tType: %s" % (highway_name, highway)).encode('ascii', 'ignore')
+                     
+                    # Expand the bounding box size to attempt to pick up nearby highways
+                    place_bounds.expand(expansion_factor)
 
                     # Download all highway=* for the place
                     if options.verbose:
@@ -178,7 +166,7 @@ with open('file_list.csv', 'rb') as csvfile:
                           out body;
                           """ % (place_bounds.south, place_bounds.west, place_bounds.north, place_bounds.east))
                     except(KeyboardInterrupt):
-                      print("\nQuitting")
+                      print("\nQuitting during highway download")
                       quit()
                     except:
                       print("Error unable to query OSM - %s" % (sys.exc_info()[0]))
@@ -188,45 +176,49 @@ with open('file_list.csv', 'rb') as csvfile:
                        print("Got %d ways from OSM" % len(result.ways))      
 
                     # Build a list of unique highway names, ignoring highways that aren't streets
-                    highway_streets = set()
+                    highway_names = set()
                     for way in result.ways:
                         highway = way.tags.get("highway", "n/a")
                         if (highway != "footway") and (highway != "cycleway") and \
                            (highway != "motorway_link") and (highway != "path") and (highway != "steps"):
                             highway_name = way.tags.get("name", "n/a")
 
-                            if highway_name not in highway_streets:
-                               highway_streets.add(highway_name)
+                            if highway_name not in highway_names:
+                               highway_names.add(highway_name)
                                if options.verbose:
                                    print("   Highway Name: %s \tType: %s" % (highway_name, highway)).encode('ascii', 'ignore')
 
-                    for name in address_streets:
+                    for address_street in address_streets:
 
                        found = False
-                       if (options.saint and ('St ' in name)):
-                         #print("      '%s' may also match 'Saint...'" % name)
-                         name_match = name.replace("St ",saint_alt)
+                       if (options.saint and ('St ' in address_street)):
+                         if options.verbose:
+                            print("   Address street name '%s' may also match highway name 'Saint...'" % address_street)
+                         name_match = address_street.replace("St ",saint_alt)
                          name_regex=re.compile(name_match)
-                         for street in highway_streets:
-                           if (name_regex.match(street)):
+                         for highway_name in highway_names:
+                           if (name_regex.match(highway_name)):
                              found = True
+                             if options.verbose:
+                                print("      Address street name '%s' matched highway name '%s'" % (address_street, highway_name))
                              break
 
                        # If address street name contains '-' seperator also match against other seperators
-                       elif '-' in name:
-                         name_match = name.replace("-",seperator_alt)
+                       elif '-' in address_street:
+                         name_match = address_street.replace("-",seperator_alt)
                          name_regex=re.compile(name_match)
-                         for street in highway_streets:
-                           if (name_regex.match(street)):
+                         for highway_name in highway_names:
+                           if (name_regex.match(highway_name)):
                              found = True
                              break
                         
-                       elif name in highway_streets:
+                       elif address_street in highway_names:
                          found = True
 
                        if not found:
                           missing += 1
-                          print("*** Addresses imported for Street: '%s' which does not have matching highway in OSM" % name)
+                          total_missing += 1
+                          print("*** Addresses imported for Street: '%s' which does not have matching highway in OSM" % address_street)
                           sys.stdout.flush()
 
                           if options.josm or (options.output != None):
@@ -235,22 +227,22 @@ with open('file_list.csv', 'rb') as csvfile:
                                 result = api.query("""
                                    node(%f,%f,%f,%f) ["addr:street"="%s"];
                                    out meta;
-                                   """ % (address_streets[name].south, address_streets[name].west, address_streets[name].north, address_streets[name].east, name))
+                                   """ % (address_streets[address_street].south, address_streets[address_street].west, address_streets[address_street].north, address_streets[address_street].east, address_street))
 
                                 if len(result.nodes) > 0:
                                    objects = objects + 'n' + str(result.nodes[0].id) + ','
                                    if options.output != None:
-                                      out_file.write("   %s,%s\n" % (name, result.nodes[0].id))
+                                      out_file.write("   %s,%s\n" % (address_street, result.nodes[0].id))
                                       out_file.flush()
                              except(KeyboardInterrupt):
-                               print("\nQuitting")
+                               print("\nQuitting during address download")
                                quit()
                              except:
                                print("Error unable to query OSM - %s" % (sys.exc_info()[0]))
                                continue
 
                  except(KeyboardInterrupt):
-                    print("\nQuitting")
+                    print("\nQuitting in zip processing")
                     quit()
                  except:
                     print("Error reading %s from zip file - %s" % (osc_file_name, sys.exc_info()[0]))
@@ -274,3 +266,5 @@ with open('file_list.csv', 'rb') as csvfile:
 
 if options.output != None:
    out_file.close() 
+
+print("Total of %d missing highways in %d places" % (total_missing, total_places))
