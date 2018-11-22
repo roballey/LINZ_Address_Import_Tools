@@ -39,7 +39,8 @@ class bbox:
 
 expansion_factor = 0.00001
 min_area = 0.000001
-seperator='( |-)'
+seperator_alt='( |-)'
+saint_alt='(St |Saint )'
 
 
 #-----------------------------------------------------------------------------
@@ -59,6 +60,9 @@ parser.add_option("-u", "--uploader", dest="uploader",
 parser.add_option("-j", "--josm",
                   action="store_true", dest="josm", default=False,
                   help="Use JOSM remote control interface to zoom to bounding box")
+parser.add_option("-s", "--saint",
+                  action="store_true", dest="saint", default=False,
+                  help="Match 'St' or 'Saint' is OSM highway name for address street names using 'St'")
 parser.add_option("-v", "--verbose",
                   action="store_true", dest="verbose", default=False,
                   help="Produce verbose output")
@@ -163,47 +167,6 @@ with open('file_list.csv', 'rb') as csvfile:
                           #          if options.verbose:
                           #             print("   Highway Name: %s \tType: %s" % (highway_name, highway)).encode('ascii', 'ignore')
 
-                          ##-----------------------------------------------------------------------------
-                          ## If name is not one of the highways downloads, street is missing
-                          ##-----------------------------------------------------------------------------
-
-                          #if '-' in name:
-                          #  name_match = name.replace("-",seperator)
-                          #  name_regex=re.compile(name_match)
-                          #  found = False
-                          #  for street in highway_streets:
-                          #    if (name_regex.match(street)):
-                          #      found = True
-                          #      break
-                          # 
-                          #elif name not in highway_streets:
-                          #  found = False
-                          #else:
-                          #  found = True
-
-                          #if not found:
-                          #      missing += 1
-
-                          #      print("*** Address Street: %s DOES NOT HAVE A HIGHWAY" % name)
-                          #      sys.stdout.flush()
-
-                          #      if options.josm or (options.output != None):
-                          #         # Get addr:street nodes for missing street and use the first to build the JOSM objects list
-                          #         result = api.query("""
-                          #            node(%f,%f,%f,%f) ["addr:street"="%s"];
-                          #            out meta;
-                          #            """ % (address_streets[name].south, address_streets[name].west, address_streets[name].north, address_streets[name].east, name))
-
-                          #         if len(result.nodes) > 0:
-                          #            objects = objects + 'n' + str(result.nodes[0].id) + ','
-                          #            if options.output != None:
-                          #               out_file.write("   %s,%s\n" % (name, result.nodes[0].id))
-
-                          #if options.verbose:
-                          #   print ('')
-                          #if options.output != None:
-                          #   out_file.flush()
-
                     # Download all highway=* for the place
                     if options.verbose:
                        print("Downloading highways from OSM for place '%s' inside bounding box [%f, %f, %f, %f]" % (place, place_bounds.south, place_bounds.west, place_bounds.north, place_bounds.east))
@@ -224,7 +187,7 @@ with open('file_list.csv', 'rb') as csvfile:
                     if options.verbose:
                        print("Got %d ways from OSM" % len(result.ways))      
 
-                    # Build a list of unique highway names 
+                    # Build a list of unique highway names, ignoring highways that aren't streets
                     highway_streets = set()
                     for way in result.ways:
                         highway = way.tags.get("highway", "n/a")
@@ -238,18 +201,27 @@ with open('file_list.csv', 'rb') as csvfile:
                                    print("   Highway Name: %s \tType: %s" % (highway_name, highway)).encode('ascii', 'ignore')
 
                     for name in address_streets:
-                       if '-' in name:
-                         name_match = name.replace("-",seperator)
+
+                       found = False
+                       if (options.saint and ('St ' in name)):
+                         #print("      '%s' may also match 'Saint...'" % name)
+                         name_match = name.replace("St ",saint_alt)
                          name_regex=re.compile(name_match)
-                         found = False
+                         for street in highway_streets:
+                           if (name_regex.match(street)):
+                             found = True
+                             break
+
+                       # If address street name contains '-' seperator also match against other seperators
+                       elif '-' in name:
+                         name_match = name.replace("-",seperator_alt)
+                         name_regex=re.compile(name_match)
                          for street in highway_streets:
                            if (name_regex.match(street)):
                              found = True
                              break
                         
-                       elif name not in highway_streets:
-                         found = False
-                       else:
+                       elif name in highway_streets:
                          found = True
 
                        if not found:
@@ -259,16 +231,23 @@ with open('file_list.csv', 'rb') as csvfile:
 
                           if options.josm or (options.output != None):
                              # Get addr:street nodes for missing street and use the first to build the JOSM objects list
-                             result = api.query("""
-                                node(%f,%f,%f,%f) ["addr:street"="%s"];
-                                out meta;
-                                """ % (address_streets[name].south, address_streets[name].west, address_streets[name].north, address_streets[name].east, name))
+                             try:
+                                result = api.query("""
+                                   node(%f,%f,%f,%f) ["addr:street"="%s"];
+                                   out meta;
+                                   """ % (address_streets[name].south, address_streets[name].west, address_streets[name].north, address_streets[name].east, name))
 
-                             if len(result.nodes) > 0:
-                                objects = objects + 'n' + str(result.nodes[0].id) + ','
-                                if options.output != None:
-                                   out_file.write("   %s,%s\n" % (name, result.nodes[0].id))
-                                   out_file.flush()
+                                if len(result.nodes) > 0:
+                                   objects = objects + 'n' + str(result.nodes[0].id) + ','
+                                   if options.output != None:
+                                      out_file.write("   %s,%s\n" % (name, result.nodes[0].id))
+                                      out_file.flush()
+                             except(KeyboardInterrupt):
+                               print("\nQuitting")
+                               quit()
+                             except:
+                               print("Error unable to query OSM - %s" % (sys.exc_info()[0]))
+                               continue
 
                  except(KeyboardInterrupt):
                     print("\nQuitting")
@@ -279,7 +258,7 @@ with open('file_list.csv', 'rb') as csvfile:
                  
 
            if missing > 0:
-              print("Place '%s' has %d missing highways %s" % (place , missing, objects))
+              print("Place '%s' has %d missing highways" % (place , missing))
               sys.stdout.flush()
 
               if (options.josm):
