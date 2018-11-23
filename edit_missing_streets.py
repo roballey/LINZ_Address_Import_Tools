@@ -31,7 +31,7 @@ if (len(args) != 1):
    print("Must specify input file on the command line")
    quit()
 
-infile = open(args[0], "rt")
+infile = open(args[0], "rtU")
 
 objects = ''
 for line in infile:
