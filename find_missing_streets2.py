@@ -123,9 +123,9 @@ with open('file_list.csv', 'rb') as csvfile:
                     with placesZip.open(osc_file_name) as osc_file:
                        if options.verbose:
                           print("Finding streets for '%s'" % place)
-                          total_places += 1
                           sys.stdout.flush()
 
+                       total_places += 1
                        root = ET.parse(osc_file).getroot()
 
                        place_bounds = bbox()
