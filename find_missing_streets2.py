@@ -10,7 +10,7 @@ import requests
 import xml.etree.ElementTree as ET
 import sys
 
-from optparse import OptionParser
+import argparse
 
 class bbox:
    south=90.0
@@ -44,30 +44,30 @@ saint_alt='(St |Saint )'
 
 
 #-----------------------------------------------------------------------------
-# Parse command line options
+# Parse command line arguments
 #-----------------------------------------------------------------------------
-parser = OptionParser()
-parser.add_option("-a", "--after", dest="after",
+parser = argparse.ArgumentParser()
+parser.add_argument("-a", "--after", dest="after",
                   help="Only check those imports after the specified date (YYYYMMDD)")
-parser.add_option("-b", "--before", dest="before",
+parser.add_argument("-b", "--before", dest="before",
                   help="Only check those imports before the specified date (YYYYMMDD)")
-parser.add_option("-o", "--output", dest="output",
+parser.add_argument("-o", "--output", dest="output",
                   help="Write output to a file for later processing")
-parser.add_option("-p", "--place", dest="place",
-                  help="Only check those imports that match the place name (regexp supproted)")
-parser.add_option("-u", "--uploader", dest="uploader",
+parser.add_argument("-p", "--place", dest="place",
+                  help="Only check those imports that match the place name (regexp supported)")
+parser.add_argument("-u", "--uploader", dest="uploader",
                   help="Specify uploader whose imports are to be checked", default="linz_robA")
-parser.add_option("-j", "--josm",
+parser.add_argument("-j", "--josm",
                   action="store_true", dest="josm", default=False,
                   help="Use JOSM remote control interface to zoom to bounding box")
-parser.add_option("-s", "--saint",
+parser.add_argument("-s", "--saint",
                   action="store_true", dest="saint", default=False,
                   help="Match 'St' or 'Saint' is OSM highway name for address street names using 'St'")
-parser.add_option("-v", "--verbose",
+parser.add_argument("-v", "--verbose",
                   action="store_true", dest="verbose", default=False,
                   help="Produce verbose output")
 
-(options, args) = parser.parse_args()
+args = parser.parse_args()
 
 
 #-----------------------------------------------------------------------------
@@ -78,18 +78,18 @@ api = overpy.Overpass()
 #-----------------------------------------------------------------------------
 # Read data from address import tracking spreadsheet
 #-----------------------------------------------------------------------------
-print("Searching for locations imported by '%s'" % options.uploader)
-if options.place != None:
-   print("Filtering by place %s" % options.place)
-   place_regex=re.compile(options.place)
-if options.before != None:
-   print("Filtering by before date %s" % options.before)
-if options.after != None:
-   print("Filtering by after date %s" % options.after)
+print("Searching for locations imported by '%s'" % args.uploader)
+if args.place != None:
+   print("Filtering by place %s" % args.place)
+   place_regex=re.compile(args.place)
+if args.before != None:
+   print("Filtering by before date %s" % args.before)
+if args.after != None:
+   print("Filtering by after date %s" % args.after)
 sys.stdout.flush()
 
-if options.output != None:
-   out_file = open(options.output, "wt")
+if args.output != None:
+   out_file = open(args.output, "wt")
 
 placesZip = zipfile.ZipFile('linz_places.zip')
 
@@ -103,25 +103,25 @@ with open('file_list.csv', 'rb') as csvfile:
         row_num = row_num + 1
 
         # Process each place imported by the specified uploader
-        if (row['uploader'] == options.uploader):
+        if (row['uploader'] == args.uploader):
            date = row['date']
            place = row['place']
 
            missing = 0
            objects = ''
 
-           if (options.place == None) or (place_regex.match(place)):
-              if ((options.after == None) or (date > options.after)) and \
-                 ((options.before == None) or (date < options.before)):
+           if (args.place == None) or (place_regex.match(place)):
+              if ((args.after == None) or (date > args.after)) and \
+                 ((args.before == None) or (date < args.before)):
                  osc_file_name = "linz_places/" + place + ".osc"
 
-                 if options.output != None:
+                 if args.output != None:
                     out_file.write("%s\n" % place)
 
                  addr_streets = set()
                  try:
                     with placesZip.open(osc_file_name) as osc_file:
-                       if options.verbose:
+                       if args.verbose:
                           print("Finding streets for '%s'" % place)
                           sys.stdout.flush()
 
@@ -148,7 +148,7 @@ with open('file_list.csv', 'rb') as csvfile:
                       
                        # Process each street for a place
                        for address_street in address_streets:
-                          if options.verbose:
+                          if args.verbose:
                              print ("   Address Street '%s' [%f, %f, %f, %f]" % (address_street, address_streets[address_street].south, address_streets[address_street].west, address_streets[address_street].north, address_streets[address_street].east))
                              sys.stdout.flush()
                      
@@ -156,7 +156,7 @@ with open('file_list.csv', 'rb') as csvfile:
                     place_bounds.expand(expansion_factor)
 
                     # Download all highway=* for the place
-                    if options.verbose:
+                    if args.verbose:
                        print("Downloading highways from OSM for place '%s' inside bounding box [%f, %f, %f, %f]" % (place, place_bounds.south, place_bounds.west, place_bounds.north, place_bounds.east))
                        sys.stdout.flush()
 
@@ -167,12 +167,12 @@ with open('file_list.csv', 'rb') as csvfile:
                           """ % (place_bounds.south, place_bounds.west, place_bounds.north, place_bounds.east))
                     except(KeyboardInterrupt):
                       print("\nQuitting during highway download")
-                      quit()
+                      sys.exit()
                     except:
                       print("Error unable to query OSM - %s" % (sys.exc_info()[0]))
                       continue
                     
-                    if options.verbose:
+                    if args.verbose:
                        print("Got %d ways from OSM" % len(result.ways))      
 
                     # Build a list of unique highway names, ignoring highways that aren't streets
@@ -185,21 +185,21 @@ with open('file_list.csv', 'rb') as csvfile:
 
                             if highway_name not in highway_names:
                                highway_names.add(highway_name)
-                               if options.verbose:
+                               if args.verbose:
                                    print("   Highway Name: %s \tType: %s" % (highway_name, highway)).encode('ascii', 'ignore')
 
                     for address_street in address_streets:
 
                        found = False
-                       if (options.saint and ('St ' in address_street)):
-                         if options.verbose:
+                       if (args.saint and ('St ' in address_street)):
+                         if args.verbose:
                             print("   Address street name '%s' may also match highway name 'Saint...'" % address_street)
                          name_match = address_street.replace("St ",saint_alt)
                          name_regex=re.compile(name_match)
                          for highway_name in highway_names:
                            if (name_regex.match(highway_name)):
                              found = True
-                             if options.verbose:
+                             if args.verbose:
                                 print("      Address street name '%s' matched highway name '%s'" % (address_street, highway_name))
                              break
 
@@ -221,7 +221,7 @@ with open('file_list.csv', 'rb') as csvfile:
                           print("*** Addresses imported for Street: '%s' which does not have matching highway in OSM" % address_street)
                           sys.stdout.flush()
 
-                          if options.josm or (options.output != None):
+                          if args.josm or (args.output != None):
                              # Get addr:street nodes for missing street and use the first to build the JOSM objects list
                              try:
                                 result = api.query("""
@@ -231,19 +231,22 @@ with open('file_list.csv', 'rb') as csvfile:
 
                                 if len(result.nodes) > 0:
                                    objects = objects + 'n' + str(result.nodes[0].id) + ','
-                                   if options.output != None:
+                                   if args.output != None:
                                       out_file.write("   %s,%s\n" % (address_street, result.nodes[0].id))
                                       out_file.flush()
                              except(KeyboardInterrupt):
                                print("\nQuitting during address download")
-                               quit()
+                               sys.exit()
                              except:
                                print("Error unable to query OSM - %s" % (sys.exc_info()[0]))
                                continue
 
                  except(KeyboardInterrupt):
-                    print("\nQuitting in zip processing")
-                    quit()
+                   print("\nQuitting in zip processing")
+                   sys.exit()
+                 except(SystemExit):
+                    print("\nExit in zip processing")
+                    sys.exit()
                  except:
                     print("Error reading %s from zip file - %s" % (osc_file_name, sys.exc_info()[0]))
                     continue
@@ -253,7 +256,7 @@ with open('file_list.csv', 'rb') as csvfile:
               print("Place '%s' has %d missing highways" % (place , missing))
               sys.stdout.flush()
 
-              if (options.josm):
+              if (args.josm):
                  print("Starting JOSM...")
                  print("http://127.0.0.1:8111/load_object?new_layer=true&objects=%s" % objects)
                  sys.stdout.flush()
@@ -264,7 +267,7 @@ with open('file_list.csv', 'rb') as csvfile:
                  sys.stdout.flush()
 
 
-if options.output != None:
+if args.output != None:
    out_file.close() 
 
 print("Total of %d missing highways in %d places" % (total_missing, total_places))
