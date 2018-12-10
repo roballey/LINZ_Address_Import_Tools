@@ -30,15 +30,10 @@ class bbox:
       self.east  *= (1.0 + factor)
       self.west  *= (1.0 - factor)
 
-   # Note: minimum is unit less
-   def expand_at_least(self, factor, minimum):
-      while (abs((self.north-self.south)*(self.west-self.east)) < minimum):
-         self.expand(factor)
-
 total_missing = 0
 total_places = 0
+total_queries = 0
 expansion_factor = 0.00005
-min_area = 0.000001
 seperator_alt='( |-)'
 saint_alt='(St |Saint )'
 
@@ -165,6 +160,7 @@ with open('file_list.csv', 'rb') as csvfile:
                           way(%f,%f,%f,%f) ["highway"];
                           out body;
                           """ % (place_bounds.south, place_bounds.west, place_bounds.north, place_bounds.east))
+                      total_queries += 1;
                     except(KeyboardInterrupt):
                       print("\nQuitting during highway download")
                       sys.exit()
@@ -228,6 +224,7 @@ with open('file_list.csv', 'rb') as csvfile:
                                    node(%f,%f,%f,%f) ["addr:street"="%s"];
                                    out meta;
                                    """ % (address_streets[address_street].south, address_streets[address_street].west, address_streets[address_street].north, address_streets[address_street].east, address_street))
+                                total_queries += 1;
 
                                 if len(result.nodes) > 0:
                                    objects = objects + 'n' + str(result.nodes[0].id) + ','
@@ -271,3 +268,4 @@ if args.output != None:
    out_file.close() 
 
 print("Total of %d missing highways in %d places" % (total_missing, total_places))
+print("Made a total of %d overpass queries" % total_queries)
