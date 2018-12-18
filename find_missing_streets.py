@@ -231,6 +231,9 @@ with open('file_list.csv', 'rb') as csvfile:
                                    if args.output != None:
                                       out_file.write("   %s,%s\n" % (address_street, result.nodes[0].id))
                                       out_file.flush()
+                                # If we get 0 records then address is marked as imported but can't be found in OSM
+                                else:
+                                   print("    *** Unable to find address nodes for Street: '%s' in OSM" % address_street)
                              except(KeyboardInterrupt):
                                print("\nQuitting during address download")
                                sys.exit()
