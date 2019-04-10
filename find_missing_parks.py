@@ -12,7 +12,7 @@ from geopy.geocoders import Nominatim
 UTF8Writer = codecs.getwriter('utf8')
 sys.stdout = UTF8Writer(sys.stdout)
 
-geolocator = Nominatim(user_agent="find_missing_parks",country_bias="nz")
+geolocator = Nominatim(user_agent="find_missing_parks",country_bias="nz",timeout=20)
 
 # Extract names of ways and relations in Auckland parks extracted from OSM
 print("Extracting parks names in OSM...")
@@ -44,7 +44,6 @@ with open("AC/ParksAndReserves.csv", 'rt') as csvfile:
             print("*** Park '%s' at '%s' not in OSM"%(row['Description'],row['Address']))
             location = geolocator.geocode(row['Address']+", "+row["Postal Code"])
             if location is not None:
-                print("   - At %s,%s"%(location.latitude,location.longitude))
 
                 node = ET.SubElement(osm, 'node')
                 node.set('id',str(-1*count))
@@ -55,13 +54,11 @@ with open("AC/ParksAndReserves.csv", 'rt') as csvfile:
                 tag.set('v',row['Description'])
 
                 sys.stdout.flush()
-                time.sleep(2)
+                time.sleep(1)
                 count += 1
-                if (count > 2):
-                    ET.dump(osm)
-                    tree = ET.ElementTree(osm)
-                    tree.write("missing_parks.osm")
-                    break
             else:
                 print("   - Can't find address")
+
+tree = ET.ElementTree(osm)
+tree.write("missing_parks.osm")
 
